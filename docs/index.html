@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Mobile Teleprompter</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            font-family: -apple-system, system-ui, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        .container {
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .webcam-section {
+            position: relative;
+            height: 35vh;
+            width: 100%;
+            background: #000;
+        }
+
+        .text-section {
+            position: relative;
+            height: 65vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 20px;
+            padding-bottom: 100px;
+            padding-top: env(safe-area-inset-top);
+            background: #000;
+        }
+
+        #webcam {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        .camera-guide {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 16px;
+            height: 16px;
+            border: 2px solid red;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1001;
+        }
+
+        .reading-line {
+            position: fixed;
+            top: 50vh;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: rgba(255, 0, 0, 0.2);
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .highlight-zone {
+            position: fixed;
+            top: 48vh;
+            left: 0;
+            width: 100%;
+            height: 4vh;
+            background: linear-gradient(
+                180deg,
+                rgba(0,0,0,0) 0%,
+                rgba(255,255,255,0.05) 20%,
+                rgba(255,255,255,0.05) 80%,
+                rgba(0,0,0,0) 100%
+            );
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 10px;
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
+            background: rgba(0,0,0,0.9);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 1002;
+            display: flex;
+            justify-content: space-around;
+            gap: 10px;
+        }
+
+        .top-controls {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 10px;
+            padding-top: max(10px, env(safe-area-inset-top));
+            background: rgba(0,0,0,0.9);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 1002;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        button {
+            padding: 12px 20px;
+            background: #444;
+            color: white;
+            border: none;
+            border-radius: 24px;
+            font-size: 16px;
+            font-weight: 600;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        button:active {
+            background: #666;
+        }
+
+        button.recording {
+            background: #ff4444;
+        }
+
+        #scriptContent {
+            font-size: 22px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            padding: 20px 10px;
+            text-align: center;
+        }
+
+        #textArea {
+            width: 100%;
+            height: calc(65vh - 120px);
+            background: #333;
+            color: white;
+            padding: 15px;
+            border: 1px solid #555;
+            border-radius: 12px;
+            font-size: 18px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .speed-control {
+            position: fixed;
+            bottom: 70px;
+            left: 0;
+            right: 0;
+            padding: 10px;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 1001;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .speed-label {
+            font-size: 14px;
+            color: #fff;
+        }
+
+        input[type="range"] {
+            width: 80%;
+            height: 30px;
+            -webkit-appearance: none;
+            background: transparent;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            background: white;
+            border-radius: 50%;
+            margin-top: -10px;
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: #444;
+            border-radius: 2px;
+        }
+
+        #timer {
+            color: #ff4444;
+            font-weight: bold;
+            font-size: 16px;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .device-controls {
+            position: fixed;
+            top: 60px;
+            left: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.9);
+            padding: 10px;
+            border-radius: 12px;
+            display: none;
+            z-index: 1003;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 10px;
+            -webkit-appearance: none;
+        }
+
+        .guide-text {
+            position: fixed;
+            width: 100%;
+            text-align: center;
+            color: yellow;
+            font-size: 14px;
+            pointer-events: none;
+            z-index: 1001;
+            top: 45vh;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="webcam-section">
+            <video id="webcam" autoplay playsinline></video>
+            <div class="top-controls">
+                <button id="recordButton" onclick="toggleRecording()">Record</button>
+                <span id="timer">00:00</span>
+                <button onclick="toggleDeviceControls()">Camera</button>
+            </div>
+        </div>
+        
+        <div class="text-section" id="textSection">
+            <div class="camera-guide"></div>
+            <div class="reading-line"></div>
+            <div class="highlight-zone"></div>
+            <div class="guide-text">Keep eyes on red dot</div>
+            <div id="scriptContent"></div>
+            <textarea id="textArea" placeholder="Enter your script here..."></textarea>
+        </div>
+
+        <div class="device-controls" id="deviceControls">
+            <select id="videoSelect" onchange="switchVideoDevice()">
+                <option value="">Loading cameras...</option>
+            </select>
+            <select id="audioSelect" onchange="switchAudioDevice()">
+                <option value="">Loading microphones...</option>
+            </select>
+        </div>
+
+        <div class="speed-control">
+            <span class="speed-label">Scroll Speed</span>
+            <input type="range" id="speed" min="1" max="100" value="50">
+        </div>
+
+        <div class="controls">
+            <button onclick="toggleEdit()">Edit</button>
+            <button id="scrollButton" onclick="toggleScroll()">Start</button>
+            <button onclick="resetScript()">Reset</button>
+        </div>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let recordedChunks = [];
+        let timerInterval;
+        let startTime;
+        let stream;
+        let scrolling = false;
+        let scrollSpeed = 2;
+        let scrollInterval;
+        let selectedVideoId = '';
+        let selectedAudioId = '';
+
+        // Initialize with default text
+        const defaultText = `Welcome to the Teleprompter!
+
+Keep your eyes on the red dot while reading.
+
+Adjust the scroll speed using the slider below.
+
+Press Start when ready to begin.
+
+You can edit this text by tapping the Edit button.`;
+
+        document.getElementById('textArea').value = defaultText;
+        document.getElementById('scriptContent').textContent = defaultText;
+
+        async function initWebcam() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                // Try to select the front camera
+                const frontCamera = videoDevices.find(device => 
+                    device.label.toLowerCase().includes('front') ||
+                    device.label.toLowerCase().includes('user') ||
+                    device.label.toLowerCase().includes('selfie')
+                );
+
+                const constraints = {
+                    video: frontCamera ? { deviceId: { exact: frontCamera.deviceId } } : true,
+                    audio: true
+                };
+
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                const video = document.getElementById('webcam');
+                video.srcObject = stream;
+                await getDevices();
+            } catch (err) {
+                console.error("Error accessing devices:", err);
+                alert("Please allow camera and microphone access");
+            }
+        }
+
+        async function getDevices() {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            
+            const videoSelect = document.getElementById('videoSelect');
+            const audioSelect = document.getElementById('audioSelect');
+            
+            videoSelect.innerHTML = '';
+            audioSelect.innerHTML = '';
+            
+            devices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.deviceId;
+                option.text = device.label || `${device.kind} ${device.deviceId.slice(0,5)}...`;
+                
+                if (device.kind === 'videoinput') {
+                    videoSelect.appendChild(option);
+                } else if (device.kind === 'audioinput') {
+                    audioSelect.appendChild(option);
+                }
+            });
+        }
+
+        async function switchVideoDevice() {
+            selectedVideoId = document.getElementById('videoSelect').value;
+            await updateStream();
+        }
+
+        async function switchAudioDevice() {
+            selectedAudioId = document.getElementById('audioSelect').value;
+            await updateStream();
+        }
+
+        async function updateStream() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                alert('Please stop recording before switching devices');
+                return;
+            }
+
+            const constraints = {
+                video: selectedVideoId ? { deviceId: { exact: selectedVideoId } } : true,
+                audio: selectedAudioId ? { deviceId: { exact: selectedAudioId } } : true
+            };
+
+            try {
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                document.getElementById('webcam').srcObject = stream;
+            } catch (err) {
+                console.error("Error switching devices:", err);
+                alert("Error switching devices. Please try again.");
+            }
+        }
+
+        function toggleDeviceControls() {
+            const controls = document.getElementById('deviceControls');
+            controls.style.display = controls.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function toggleRecording() {
+            const recordButton = document.getElementById('recordButton');
+            
+            if (recordButton.textContent === 'Record') {
+                startRecording();
+                recordButton.textContent = 'Stop';
+                recordButton.classList.add('recording');
+                startTimer();
+            } else {
+                stopRecording();
+                recordButton.textContent = 'Record';
+                recordButton.classList.remove('recording');
+                stopTimer();
+            }
+        }
+
+        function startRecording() {
+            recordedChunks = [];
+            mediaRecorder = new MediaRecorder(stream);
+            
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, {
+                    type: 'video/webm'
+                });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'teleprompter-recording.webm';
+                a.click();
+                URL.revokeObjectURL(url);
+            };
+
+            mediaRecorder.start();
+        }
+
+        function stopRecording() {
+            mediaRecorder.stop();
+        }
+
+        function startTimer() {
+            startTime = Date.now();
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            document.getElementById('timer').textContent = '00:00';
+        }
+
+        function updateTimer() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+            const seconds = (elapsed % 60).toString().padStart(2, '0');
+            document.getElementById('timer').textContent = `${minutes}:${seconds}`;
+        }
+
+        function toggleScroll() {
+            scrolling = !scrolling;
+            const scrollButton = document.getElementById('scrollButton');
+            
+            if (scrolling) {
+                scrollButton.textContent = 'Stop';
+                scrollInterval = setInterval(() => {
+                    const textSection = document.querySelector('.text-section');
+                    textSection.scrollBy(0, scrollSpeed);
+                }, 50);
+            } else {
+                scrollButton.textContent = 'Start';
+                clearInterval(scrollInterval);
+            }
+        }
+
+        document.getElementById('speed').addEventListener('input', function() {
+            scrollSpeed = this.value / 25;
+            if (scroll
+document.getElementById('speed').addEventListener('input', function() {
+            scrollSpeed = this.value / 25;
+            if (scrolling) {
+                clearInterval(scrollInterval);
+                scrollInterval = setInterval(() => {
+                    const textSection = document.querySelector('.text-section');
+                    textSection.scrollBy(0, scrollSpeed);
+                }, 50);
+            }
+        });
+
+        function resetScript() {
+            const textSection = document.querySelector('.text-section');
+            textSection.scrollTo(0, 0);
+            scrolling = false;
+            clearInterval(scrollInterval);
+            document.getElementById('scrollButton').textContent = 'Start';
+        }
+
+        function toggleEdit() {
+            const textArea = document.getElementById('textArea');
+            const scriptContent = document.getElementById('scriptContent');
+            
+            if (textArea.style.display === 'none') {
+                textArea.style.display = 'block';
+                scriptContent.style.display = 'none';
+                textArea.focus();
+            } else {
+                textArea.style.display = 'none';
+                scriptContent.style.display = 'block';
+                scriptContent.textContent = textArea.value;
+            }
+        }
+
+        // Handle touch events for manual scrolling
+        const textSection = document.querySelector('.text-section');
+        let touchStartY = 0;
+        let touchStartTime = 0;
+
+        textSection.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+            touchStartTime = Date.now();
+            if (scrolling) {
+                toggleScroll(); // Stop auto-scroll when user touches
+            }
+        });
+
+        textSection.addEventListener('touchmove', (e) => {
+            const touch = e.touches[0];
+            const diff = touchStartY - touch.clientY;
+            textSection.scrollTop += diff;
+            touchStartY = touch.clientY;
+        });
+
+        // Prevent default bounce on iOS
+        document.body.addEventListener('touchmove', function(e) {
+            if (e.target.closest('.text-section')) return;
+            e.preventDefault();
+        }, { passive: false });
+
+        // Handle orientation changes
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+            }, 100);
+        });
+
+        // Prevent screen sleep
+        async function preventSleep() {
+            try {
+                if (navigator.wakeLock) {
+                    await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {
+                console.log('Wake Lock not supported');
+            }
+        }
+
+        // Initialize everything
+        initWebcam();
+        preventSleep();
+    </script>
+</body>
+</html>
